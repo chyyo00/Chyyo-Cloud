@@ -26,7 +26,8 @@ async function main() {
   }
 
   const app = express();
-  app.use(cors({ origin: env.corsOrigin, credentials: true }));
+  const corsOptions = { origin: env.corsOrigins, credentials: true };
+  app.use(cors(corsOptions));
   app.use(express.json({ limit: '50mb' }));
 
   app.get('/health', (_req, res) => res.json({ ok: true, name: 'Chyyo-Web', ts: Date.now() }));
@@ -35,7 +36,7 @@ async function main() {
 
   // Socket.IO
   const io = new Server(httpServer, {
-    cors: { origin: env.corsOrigin, credentials: true },
+    cors: corsOptions,
     transports: ['websocket', 'polling'],
   });
 

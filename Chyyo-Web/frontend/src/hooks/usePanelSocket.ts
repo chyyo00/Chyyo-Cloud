@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { tokenStore } from '../lib/api';
+import { socketUrl } from '../lib/config';
 
 export interface ServerStatusEvent {
   serverId?: string;
@@ -52,7 +53,7 @@ export function usePanelSocket() {
     const token = tokenStore.get();
     if (!token) return;
 
-    const socket = io('/panel', {
+    const socket = io(socketUrl('/panel'), {
       auth: { token },
       transports: ['websocket', 'polling'],
     });

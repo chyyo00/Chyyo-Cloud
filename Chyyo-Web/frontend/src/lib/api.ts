@@ -6,6 +6,8 @@ export const tokenStore = {
   clear: () => localStorage.removeItem(TOKEN_KEY),
 };
 
+import { API_BASE } from './config';
+
 export interface User {
   id: string;
   username: string;
@@ -70,7 +72,7 @@ interface RpcResponse {
 class Api {
   private async request<T>(method: string, url: string, body?: unknown): Promise<T> {
     const token = tokenStore.get();
-    const res = await fetch(url, {
+    const res = await fetch(`${API_BASE}${url}`, {
       method,
       headers: {
         'Content-Type': 'application/json',

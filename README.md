@@ -85,7 +85,7 @@ Chyyo-Agent/
    ```json
    {
      "panel": {
-       "baseUrl": "http://패널_서버_IP:3000",
+       "baseUrl": "https://panel-api.choverse.com",
        "agentToken": "Web에서 발급받은 에이전트 토큰"
      },
      "agent": {
@@ -94,6 +94,10 @@ Chyyo-Agent/
      }
    }
    ```
+
+   > `baseUrl`은 패널 API 주소입니다. 도메인 배포 시 `https://panel-api.choverse.com`,
+   > 로컬 테스트 시 `http://패널_서버_IP:3000`을 사용합니다. 에이전트는 아웃바운드 연결이라
+   > 방화벽/NAT 뒤에서도 동작합니다.
 
 3. **실행**:
 
@@ -193,21 +197,96 @@ npm run dev            :: 개발 서버 (:5173, /api·/socket.io 프록시)
 
 > 기본 관리자 계정: `admin` / `.env`의 `ADMIN_PASSWORD` (기본 `admin1234`)
 
-## 프로덕션 배포 (Windows Server)
+## 프로덕션 배포 (Windows Server / Linux)
+
+프론트와 백엔드는 **별도 도메인**으로 분리 배포합니다.
+
+| 구성 | 도메인 | 내용 |
+|---|---|---|
+| Frontend | `https://panel.choverse.com` | `frontend/dist` 정적 파일 (nginx) |
+| Backend  | `https://panel-api.choverse.com` | Node 서버 `:3000` 리버스 프록시 (REST + WebSocket) |
+
+### 1) Backend
 
 ```bat
-:: Backend
 cd Chyyo-Web\backend
+npm install
+copy .env.example .env
+:: DATABASE_URL, JWT_SECRET, ADMIN_PASSWORD, CORS_ORIGINS 수정
+npm run db:init
 npm run build
 set NODE_ENV=production
 node dist/index.js
-:: (선택) NSSM으로 Windows 서비스 등록
-
-:: Frontend
-cd Chyyo-Web\frontend
-npm run build
-:: dist/ 폴더를 nginx/IIS로 서빙 + /api, /socket.io 리버스 프록시
+:: (선택) NSSM / systemd로 서비스 등록
 ```
+
+`.env`의 `CORS_ORIGINS`에 프론트 오리진을 등록합니다 (콤마 구분):
+
+```
+CORS_ORIGINS=https://panel.choverse.com
+```
+
+### 2) Frontend
+
+```bat
+cd Chyyo-Web\frontend
+npm install
+:: .env.production 에 VITE_API_URL=https://panel-api.choverse.com 설정 (기본값)
+npm run build
+:: dist/ 폴더를 panel.choverse.com의 웹루트로 서빙
+```
+
+> **로컬 개발**은 `.env.development`(VITE_API_URL 미설정)로 실행합니다.
+> Vite 프록시가 `/api`, `/socket.io`를 `localhost:3000`으로 전달하므로
+> `npm run dev` 후 `http://localhost:5173`만 접속하면 됩니다.
+
+### 3) nginx 설정 예시
+
+`panel.choverse.com` (정적 프론트):
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name panel.choverse.com;
+
+    ssl_certificate     /etc/letsencrypt/live/panel.choverse.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/panel.choverse.com/privkey.pem;
+
+    root /srv/chyyo/frontend/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+`panel-api.choverse.com` (백엔드 프록시 + WebSocket):
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name panel-api.choverse.com;
+
+    ssl_certificate     /etc/letsencrypt/live/panel-api.choverse.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/panel-api.choverse.com/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 300s;
+    }
+}
+```
+
+> 아직 SSL 인증서가 없다면 certbot으로 발급받으세요:
+> `certbot --nginx -d panel.choverse.com -d panel-api.choverse.com`
 
 ---
 
