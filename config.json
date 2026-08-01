@@ -1,0 +1,22 @@
+{
+  "panel": {
+    "baseUrl": "http://localhost:3000",
+    "agentToken": "CHANGE_ME_AGENT_TOKEN",
+    "reconnectDelayMs": 5000
+  },
+  "agent": {
+    "name": "Primary-Node",
+    "serverRoot": "C:/Minecraft",
+    "maxServers": 8,
+    "autoStartServers": false
+  },
+  "backup": {
+    "autoBackupIntervalHours": 6,
+    "keepLast": 10,
+    "compressionLevel": 6
+  },
+  "console": {
+    "bufferSize": 1000,
+    "logToFile": true
+  }
+}
