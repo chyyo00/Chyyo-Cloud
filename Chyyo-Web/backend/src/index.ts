@@ -1,5 +1,5 @@
 import express from 'express';
-import cors from 'cors';
+import cors, { CorsOptions } from 'cors';
 import http from 'http';
 import { Server } from 'socket.io';
 import { env } from './config/env';
@@ -26,7 +26,14 @@ async function main() {
   }
 
   const app = express();
-  const corsOptions = { origin: env.corsOrigins, credentials: true };
+  const cloudflarePagesOrigin = /^https:\/\/(?:[a-z0-9-]+\.)?chyyo-cloud\.pages\.dev$/i;
+  const corsOptions: CorsOptions = {
+    origin(origin, callback) {
+      const allowed = !origin || env.corsOrigins.includes(origin) || cloudflarePagesOrigin.test(origin);
+      callback(null, allowed);
+    },
+    credentials: true,
+  };
   app.use(cors(corsOptions));
   app.use(express.json({ limit: '50mb' }));
 

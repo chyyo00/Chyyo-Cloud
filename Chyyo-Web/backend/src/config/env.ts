@@ -28,6 +28,6 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   adminPassword,
   corsOrigins: splitOrigins(
-    process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:4173'
+    process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:4173,https://panel.choverse.com'
   ),
 } as const;
