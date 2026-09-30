@@ -1,0 +1,10 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "chyyo-cloud-api-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-30",
+  "workers_dev": true,
+  "vars": {
+    "BACKEND_ORIGIN": "https://chyyo-cloud-production.up.railway.app"
+  }
+}

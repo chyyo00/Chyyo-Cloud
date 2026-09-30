@@ -6,10 +6,12 @@
  *   /api, /socket.io를 백엔드(localhost:3000)로 전달합니다.
  */
 const raw = import.meta.env.VITE_API_URL as string | undefined;
+const rawSocket = import.meta.env.VITE_SOCKET_URL as string | undefined;
 
 export const API_BASE: string = raw ? raw.replace(/\/+$/, '') : '';
 
 /** Socket.IO 연결 주소(네임스페이스 포함) 생성 */
 export function socketUrl(namespace: string): string {
-  return API_BASE ? `${API_BASE}${namespace}` : namespace;
+  const base = rawSocket ? rawSocket.replace(/\/+$/, '') : API_BASE;
+  return base ? `${base}${namespace}` : namespace;
 }
