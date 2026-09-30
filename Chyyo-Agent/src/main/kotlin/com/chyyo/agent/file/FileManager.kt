@@ -20,7 +20,7 @@ class FileManager(private val serverRoot: File) {
     private fun resolve(path: String): File? {
         val base = serverRoot.canonicalFile
         val target = File(base, path.trimStart('/')).canonicalFile
-        return target.takeIf { it.absolutePath.startsWith(base.absolutePath) }
+        return target.takeIf { it.toPath().startsWith(base.toPath()) }
     }
 
     suspend fun list(path: String): Result<List<FileEntry>> = withContext(Dispatchers.IO) {
@@ -89,7 +89,11 @@ class FileManager(private val serverRoot: File) {
     suspend fun rename(path: String, newName: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val file = resolve(path) ?: return@withContext Result.failure(IllegalStateException("잘못된 경로입니다"))
-            val target = File(file.parentFile, newName)
+            if (newName.isBlank() || newName == "." || newName == ".." || newName.contains('/') || newName.contains('\\')) {
+                return@withContext Result.failure(IllegalStateException("Invalid file name"))
+            }
+            val target = resolve(File(file.parentFile, newName).path)
+                ?: return@withContext Result.failure(IllegalStateException("Invalid path"))
             if (file.renameTo(target)) Result.success(Unit)
             else Result.failure(IllegalStateException("이름 변경 실패"))
         } catch (e: Exception) {

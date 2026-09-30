@@ -52,7 +52,7 @@ function PasswordCard() {
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
-    if (!next || next.length < 6) {
+    if (!next || next.length < 12 || new TextEncoder().encode(next).length > 72) {
       toast('error', '새 비밀번호는 최소 6자 이상이어야 합니다');
       return;
     }

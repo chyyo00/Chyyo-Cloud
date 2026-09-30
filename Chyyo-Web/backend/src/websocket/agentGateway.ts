@@ -41,10 +41,10 @@ export class AgentGateway {
   init() {
     this.agentIo.on('connection', (socket) => {
       socket.on('hello', (payload, ack) => this.handleHello(socket, payload, ack));
-      socket.on('server:status', (p) => this.handleServerStatus(socket, p));
-      socket.on('console:log', (p) => this.handleConsoleLog(socket, p));
+      socket.on('server:status', (p) => { void this.handleServerStatus(socket, p).catch((e) => console.error('[agent] status rejected:', (e as Error).message)); });
+      socket.on('console:log', (p) => { void this.handleConsoleLog(socket, p).catch((e) => console.error('[agent] console event rejected:', (e as Error).message)); });
       socket.on('agent:stats', (p) => this.handleAgentStats(socket, p));
-      socket.on('backup:done', (p) => this.handleBackupDone(socket, p));
+      socket.on('backup:done', (p) => { void this.handleBackupDone(socket, p).catch((e) => console.error('[agent] backup event rejected:', (e as Error).message)); });
       socket.on('disconnect', () => this.handleDisconnect(socket));
     });
   }
@@ -69,6 +69,8 @@ export class AgentGateway {
       }
 
       const agentId = agent.id;
+      const previous = this.agents.get(agentId);
+      if (previous && previous.socket !== socket) previous.socket.disconnect(true);
       this.agents.set(agentId, { socket, name: agent.name });
       socket.data.agentId = agentId;
 
@@ -100,6 +102,7 @@ export class AgentGateway {
   private handleDisconnect(socket: Socket) {
     const agentId = socket.data.agentId as string | undefined;
     if (!agentId) return;
+    if (this.agents.get(agentId)?.socket !== socket) return;
     this.agents.delete(agentId);
     query('UPDATE agents SET connected = false WHERE id = $1', [agentId]).catch((e) => {
       console.error('[db] 연결 해제 기록 실패:', (e as Error).message);
@@ -159,13 +162,18 @@ export class AgentGateway {
 
   // ---- 에이전트 이벤트 수신 -> 캐시 + 패널 브로드캐스트 ----
 
-  private handleServerStatus(socket: Socket, p: any) {
-    const agentId = socket.data.agentId;
+  private async handleServerStatus(socket: Socket, p: any) {
+    const agentId = socket.data.agentId as string | undefined;
+    const serverId = typeof p?.serverId === 'string' ? p.serverId : '';
+    if (!agentId || !serverId || !(await this.ownsServer(agentId, serverId))) return;
     this.serverStatus.set(p.serverId, p);
     this.panelIo.to(`server:${p.serverId}`).emit('server:status', { ...p, agentId });
   }
 
-  private handleConsoleLog(socket: Socket, p: any) {
+  private async handleConsoleLog(socket: Socket, p: any) {
+    const agentId = socket.data.agentId as string | undefined;
+    const serverId = typeof p?.serverId === 'string' ? p.serverId : '';
+    if (!agentId || !serverId || typeof p?.line !== 'string' || !(await this.ownsServer(agentId, serverId))) return;
     const buffer = this.serverConsole.get(p.serverId) ?? [];
     buffer.push({ line: p.line, ts: p.ts });
     if (buffer.length > 1000) buffer.splice(0, buffer.length - 1000);
@@ -181,7 +189,9 @@ export class AgentGateway {
   }
 
   private async handleBackupDone(socket: Socket, p: any) {
-    const agentId = socket.data.agentId;
+    const agentId = socket.data.agentId as string | undefined;
+    const serverId = typeof p?.serverId === 'string' ? p.serverId : '';
+    if (!agentId || !serverId || !(await this.ownsServer(agentId, serverId))) return;
     this.panelIo.to(`server:${p.serverId}`).emit('backup:done', { ...p, agentId });
     try {
       await query(
@@ -193,6 +203,14 @@ export class AgentGateway {
     } catch (e) {
       console.error('[db] 백업 기록 실패:', (e as Error).message);
     }
+  }
+
+  private async ownsServer(agentId: string, serverId: string): Promise<boolean> {
+    const row = await queryOne<{ id: string }>(
+      'SELECT id FROM servers WHERE id = $1 AND agent_id = $2',
+      [serverId, agentId]
+    );
+    return !!row;
   }
 
   // ---- 접근자 ----

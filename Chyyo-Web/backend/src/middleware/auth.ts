@@ -56,7 +56,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   if (!payload) {
     return res.status(401).json({ error: '유효하지 않은 토큰입니다' });
   }
-  req.user = payload;
+  try {
+    const currentUser = await queryOne<{ username: string; role: string }>(
+      'SELECT username, role FROM users WHERE id = $1',
+      [payload.sub]
+    );
+    if (!currentUser) return res.status(401).json({ error: '유효하지 않은 토큰입니다' });
+    req.user = { ...payload, username: currentUser.username, role: currentUser.role as 'admin' | 'user' };
+  } catch {
+    return res.status(500).json({ error: '서버 내부 오류' });
+  }
   next();
 }
 

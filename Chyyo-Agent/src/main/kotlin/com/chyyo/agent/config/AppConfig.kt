@@ -57,7 +57,9 @@ data class AppConfig(
                     }
                 }
             }
-            if (!cfgFile.exists()) return INSTANCE
+            if (!cfgFile.exists()) {
+                throw IllegalStateException("Missing config.json. Copy the agent configuration file and set its panel URL and token.")
+            }
 
             val root = JSONObject(cfgFile.readText(Charsets.UTF_8))
 
@@ -72,6 +74,15 @@ data class AppConfig(
                 agentToken = System.getenv("CHYYO_AGENT_TOKEN") ?: panelJson.optString("agentToken", "CHANGE_ME_AGENT_TOKEN"),
                 reconnectDelayMs = panelJson.optLong("reconnectDelayMs", 5000)
             )
+            val panelUri = java.net.URI(panel.baseUrl)
+            val panelHost = panelUri.host?.lowercase()
+            val isLoopback = panelHost in setOf("localhost", "127.0.0.1", "::1")
+            require(panelUri.scheme == "https" || (panelUri.scheme == "http" && isLoopback)) {
+                "Panel URL must use HTTPS unless it points to localhost"
+            }
+            require(panel.agentToken.length >= 32 && !panel.agentToken.startsWith("CHANGE_ME")) {
+                "Configure a valid agent token before starting"
+            }
             val agent = AgentConfig(
                 name = agentJson.optString("name", "Primary-Node"),
                 serverRoot = agentJson.optString("serverRoot", "C:/Minecraft"),

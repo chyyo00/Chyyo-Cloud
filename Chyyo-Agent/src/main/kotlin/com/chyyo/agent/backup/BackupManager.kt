@@ -111,18 +111,21 @@ class BackupManager(
     }
 
     private fun resolveBackup(name: String): File? {
-        val file = File(backupDir, name)
-        if (file.absolutePath.startsWith(backupDir.absolutePath) && file.extension.equals("zip", true)) {
-            return file.takeIf { it.exists() }
-        }
-        return null
+        if (name.isBlank() || name.contains('/') || name.contains('\\')) return null
+        val base = backupDir.canonicalFile.toPath()
+        val file = File(backupDir, name).canonicalFile
+        if (!file.toPath().startsWith(base) || file.parentFile != backupDir.canonicalFile || !file.extension.equals("zip", true)) return null
+        return file.takeIf { it.isFile }
     }
 
     /** ZIP 경로 트래버셜 방지: backupDir 밖으로 나가는 엔트리는 무시 */
     private fun resolveSafeTarget(entryName: String): File? {
-        val cleaned = entryName.removePrefix("/")
-        if (cleaned.contains("..")) return null
-        return File(serverDir, cleaned)
+        if (entryName.isBlank() || entryName.startsWith('/') || entryName.startsWith('\\')) return null
+        val cleaned = entryName.replace('/', File.separatorChar).replace('\\', File.separatorChar)
+        if (cleaned.split(File.separatorChar).any { it == ".." || it.isBlank() }) return null
+        val base = serverDir.canonicalFile.toPath()
+        val target = File(serverDir, cleaned).canonicalFile
+        return target.takeIf { it.toPath().startsWith(base) }
     }
 
     private fun pruneOldBackups() {

@@ -17,14 +17,14 @@ interface UserRow {
 /** 회원가입 */
 authRouter.post('/register', async (req, res) => {
   const { username, password } = req.body ?? {};
-  if (!username || !password) {
+  if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
     return res.status(400).json({ error: 'username과 password가 필요합니다' });
   }
   if (!/^[a-zA-Z0-9_]{3,32}$/.test(username)) {
     return res.status(400).json({ error: '아이디는 3~32자의 영문/숫자/언더바만 가능합니다' });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ error: '비밀번호는 최소 6자 이상이어야 합니다' });
+  if (password.length < 12 || Buffer.byteLength(password, 'utf8') > 72) {
+    return res.status(400).json({ error: '비밀번호는 12자 이상 72바이트 이하여야 합니다' });
   }
   const existing = await queryOne('SELECT id FROM users WHERE username = $1', [username]);
   if (existing) return res.status(409).json({ error: '이미 사용 중인 아이디입니다' });
@@ -40,6 +40,9 @@ authRouter.post('/register', async (req, res) => {
 /** 로그인 */
 authRouter.post('/login', async (req, res) => {
   const { username, password } = req.body ?? {};
+  if (typeof username !== 'string' || typeof password !== 'string') {
+    return res.status(400).json({ error: '아이디와 비밀번호를 입력하세요' });
+  }
   if (!username || !password) return res.status(400).json({ error: '아이디와 비밀번호를 입력하세요' });
 
   const user = await queryOne<UserRow>('SELECT * FROM users WHERE username = $1', [username]);
@@ -60,12 +63,12 @@ authRouter.get('/me', requireAuth, async (req, res) => {
 /** 프로필 변경 (비밀번호) */
 authRouter.patch('/profile', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body ?? {};
-  if (!newPassword || newPassword.length < 6) {
-    return res.status(400).json({ error: '새 비밀번호는 최소 6자 이상이어야 합니다' });
+  if (typeof currentPassword !== 'string' || !currentPassword || typeof newPassword !== 'string' || newPassword.length < 12 || Buffer.byteLength(newPassword, 'utf8') > 72) {
+    return res.status(400).json({ error: '현재 비밀번호와 12자 이상 72바이트 이하의 새 비밀번호가 필요합니다' });
   }
   const user = await queryOne<UserRow>('SELECT * FROM users WHERE id = $1', [req.user!.sub]);
   if (!user) return res.status(404).json({ error: '사용자를 찾을 수 없습니다' });
-  if (currentPassword && !verifyPassword(currentPassword, user.password_hash)) {
+  if (!verifyPassword(currentPassword, user.password_hash)) {
     return res.status(400).json({ error: '현재 비밀번호가 올바르지 않습니다' });
   }
   await query('UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2', [
